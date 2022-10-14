@@ -5,6 +5,14 @@
 ## KURE: Kurtosis Regularization Defense
 This repo applies Kurtosis Regularization (https://github.com/moranshkolnik/RobustQuantization) as a defense against Gradient Inversion attacks. We implement several variations of this defense method, and test different attack scenarios. A variation of DPSGD is also implemented to test how KURE can improve noise-injection defenses.
 
+Added Parameters for KURE:
+--defense_kurtosis --kt_target 1.8 --kt_ratio 1e-03
+
+And some other misc parameters to have dynamic scaling and other options.
+
+Parameters for DPSGD:
+--defense_DPSGD --noise_multiplier 1.0 --epsilon 2 
+
 I would like to thank Huang et al. for this great repo for evaluating gradient inversion defenses.
 
 --------------------------------------------------------------------------------------------------------------------------------------------------
