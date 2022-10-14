@@ -50,6 +50,7 @@ def extract_attack_set(
         else:
             index_pool = np.random.RandomState(seed=seed).permutation(
                 len(dataset))
+            #print(index_pool[0])
         for i in index_pool:
             current_class = dataset[i][1]
             if len(class2sample[current_class]) < sample_per_class:
