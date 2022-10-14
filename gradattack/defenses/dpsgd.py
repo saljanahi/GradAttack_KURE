@@ -138,8 +138,8 @@ class DPSGDDefense(GradientDefense):
             )
 
         # Converts all BatchNorm modules to another module (defaults to GroupNorm) that is privacy compliant  # FIXME: should update the privacy accountant
-        # pipeline.model._model = convert_batchnorm_modules(
-        #     pipeline.model._model)
+        pipeline.model._model = convert_batchnorm_modules(
+             pipeline.model._model)
 
         pipeline._data_transformations.append(do_DPSGD_sampler)
         pipeline.model._opt_transformations.append(do_dpsgd)

@@ -11,6 +11,7 @@ from .gradprune import GradPruneDefense
 from .instahide import InstahideDefense
 from .mixup import MixupDefense
 
+
 init(autoreset=True)
 INDENT = "\t"
 
@@ -64,6 +65,8 @@ class DefensePack:
                 max_epsilon=params["max_epsilon"],
             )
             self.DPSGD_defense.apply(pipeline)
+        if "KurtosisDefense" in self.defense_params.keys():
+            params = self.defense_params["KurtosisDefense"]
 
     def parse_defense_params(self, args, verbose=True):
         if args.defense_DPSGD:
@@ -95,6 +98,12 @@ class DefensePack:
             }
         if args.defense_gradprune:
             self.defense_params["GradPruneDefense"] = {"p": args.p}
+        
+        if args.defense_kurtosis:
+            self.defense_params["KurtosisDefense"] = {
+                "kt_ratio": args.kt_ratio,
+                "kt_target": args.kt_target
+            }
 
         if verbose:
             print(Style.BRIGHT + Fore.CYAN + "Applied defenses:")
