@@ -5,6 +5,8 @@
 ## KURE: Kurtosis Regularization Defense
 This repo applies Kurtosis Regularization (https://github.com/moranshkolnik/RobustQuantization) as a defense against Gradient Inversion attacks. We implement several variations of this defense method, and test different attack scenarios. A variation of DPSGD is also implemented to test how KURE can improve noise-injection defenses.
 
+I would like to thank Huang et al. for this great repo for evaluating gradient inversion defenses.
+
 --------------------------------------------------------------------------------------------------------------------------------------------------
 
 GradAttack is a Python library for easy evaluation of privacy risks in public gradients in Federated Learning, as well as corresponding mitigation strategies. The current version focuses on the gradient inversion attack in the image classification task, which recovers *private* images from *public* gradients. 
