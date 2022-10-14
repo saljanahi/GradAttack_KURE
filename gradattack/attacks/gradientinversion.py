@@ -8,7 +8,7 @@ import torch.nn.functional as F
 import torchmetrics
 from gradattack.metrics.gradients import CosineSimilarity, L2Diff
 from gradattack.metrics.pixelwise import MeanPixelwiseError
-from gradattack.models import LightningWrapper
+#from gradattack.models import LightningWrapper
 from gradattack.trainingpipeline import TrainingPipeline
 from gradattack.utils import patch_image
 from torch.utils.data.dataloader import DataLoader
@@ -127,6 +127,8 @@ class GradientReconstructor(pl.LightningModule):
         self._model = copy.deepcopy(pipeline.model)
         self.BN_exact = BN_exact
         self.recipe = recipe
+
+        self.reconstruction_loss = 0.0 #CHECK123
 
         self.automatic_optimization = False
         self._attack_loss_metric = attack_loss_metric
@@ -343,6 +345,7 @@ class GradientReconstructor(pl.LightningModule):
             )
 
             if self.global_step % 100 == 0:
+                #print(reconstruction_loss)
                 for i in range(len(self.loss_r_feature_layers)):
                     self.logger.experiment.add_scalar(
                         f"BN_loss/layer_{i}_mean_loss",
@@ -430,7 +433,7 @@ class GradientReconstructor(pl.LightningModule):
                         abs_avg_rmse,
                         global_step=self.global_step,
                     )
-
+        self.reconstruction_loss = reconstruction_loss #CHECK123
         return reconstruction_loss
 
     def configure_optimizers(self):
