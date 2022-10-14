@@ -1,15 +1,18 @@
 # FIXME: @Samyak, could you please help add docstring to this file? Thanks!
 import os
+from statistics import stdev
 import time
 from typing import Any, Callable, Optional
 
 import pytorch_lightning as pl
+import copy
 import torch.nn.functional as F
 import torchvision.models as models
 from gradattack.utils import StandardizeLayer
 from sklearn import metrics
 from torch.nn import init
 from torch.optim.lr_scheduler import LambdaLR, MultiStepLR, ReduceLROnPlateau, StepLR
+
 
 from .covidmodel import *
 from .densenet import *
@@ -22,7 +25,6 @@ from .simple import *
 from .vgg import *
 from .multihead_resnet import *
 from .LeNet import *
-
 
 class StepTracker:
     def __init__(self):
@@ -55,6 +57,14 @@ class LightningWrapper(pl.LightningModule):
         log_auc: bool = False,
         multi_class: bool = False,
         multi_head: bool = False,
+        apply_kurtosis: bool = False,
+        kt_target: float = 1.8,
+        kt_ratio: float = 0.01,
+        kureStepScale: bool = False,
+        apply_noise: bool = False,
+        clipBound: float = 1.0,
+        noiseMultiplier: float = 1.0,
+        deviceG: int = 0,
     ):
         super().__init__()
         # if we didn't copy here, then we would modify the default dict by accident
@@ -73,15 +83,29 @@ class LightningWrapper(pl.LightningModule):
 
         self._model = model
         self._training_loss_metric = training_loss_metric
-        self._val_loss_metric = training_loss_metric
+        self._val_loss_metric = torch.nn.CrossEntropyLoss(reduction="mean")
 
         self._batch_transformations = []
         self._grad_transformations = []
         self._opt_transformations = []
 
+        self.apply_kurtosis = apply_kurtosis
+        self._kt_target = kt_target
+        self._kt_ratio = kt_ratio
+        self.kureStepScale = kureStepScale
+
+        self.apply_noise_weights = apply_noise
+        self.clipping_bound = clipBound
+        self.noise_multiplier = noiseMultiplier
+        self.deviceG = deviceG
+
+
+        self._lr_factor = lr_factor
+        self._lr_step = lr_step
+
         self._epoch_end_callbacks = []
         self._step_end_callbacks = []
-        self._log_gradients = False
+        self._log_gradients = True
 
         self.current_val_loss = 100
         self._on_train_epoch_start_callbacks = []
@@ -106,6 +130,12 @@ class LightningWrapper(pl.LightningModule):
         return self.trainer.train_loop.should_accumulate()
 
     def on_train_epoch_start(self) -> None:
+        #Dynamic scaling factor for KURE term, with the StepLR Intervals. As LR scaled down by lr_factor, scaling term kt ratio scaled down by lr_factor.
+        if self.kureStepScale:
+            if (self.current_epoch + 1) % self._lr_step == 0:
+                self._kt_ratio = self._kt_ratio * self._lr_factor
+
+
         for callback in self._on_train_epoch_start_callbacks:
             callback(self)
 
@@ -135,13 +165,18 @@ class LightningWrapper(pl.LightningModule):
         x, y = batch
         y_hat = self(x)
 
+        #if self.apply_noise_weights:
+            #self._model = apply_noise(self._model, self.clipping_bound, self.noise_multiplier, self.deviceG)
+
         if self.multi_head:
             loss = []
             for j in range(y_hat.size(1)):
-                loss.append(self._training_loss_metric(y_hat[:, j], y[:, j]))
-            loss = sum(loss)
+                loss.append(self._training_loss_metric(y_hat[:, j], y[:, j])) 
+            loss = sum(loss) 
+        elif self.apply_kurtosis:
+            loss = self._training_loss_metric(self, y_hat, y, self._kt_target, self._kt_ratio)
         else:
-            loss = self._training_loss_metric(y_hat, y)
+            loss = self._training_loss_metric(y_hat, y )
 
         return {
             "loss": loss,
@@ -152,11 +187,20 @@ class LightningWrapper(pl.LightningModule):
     def training_step(self, batch, batch_idx, *_) -> dict:
         if self.step_tracker.in_progress == False:
             self.step_tracker.start()
-
+        
         training_step_results = self._compute_training_step(batch, batch_idx)
         self.step_tracker.cur_loss += training_step_results["loss"].item()
 
         self.manual_backward(training_step_results["loss"])
+        
+        # varTotal = torch.tensor([0.0]).to(torch.device(f"cuda:{1}"))
+        # for param in self._model.parameters():
+        #     varTotal += torch.var(torch.flatten(param), unbiased=False, dim=0, keepdim=False)
+        # print("Variance total for gradients: ", varTotal)
+
+        #for name, param in self._model.named_parameters():
+            #print("Layer ", name, " has norm: ", torch.norm(param) )
+
 
         if self.should_accumulate():
             # Special case opacus optimizers to reduce memory footprint
@@ -402,6 +446,8 @@ class LightningWrapper(pl.LightningModule):
             for j in range(y_hat.size(1)):
                 loss.append(self._val_loss_metric(y_hat[:, j], y[:, j]))
             loss = sum(loss) / len(loss)
+        elif self.apply_kurtosis:
+            loss = F.cross_entropy( y_hat, y) #CHECK THIS
         else:
             loss = self._val_loss_metric(y_hat, y)
         top1_acc = accuracy(y_hat, y, multi_head=self.multi_head)[0]
