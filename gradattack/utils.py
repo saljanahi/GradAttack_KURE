@@ -626,3 +626,36 @@ def patch_image(x, dim=(32, 32)):
 #     return ClassificationLoss + w_kurtosis_regularization
 
 
+def find_tensor_by_name(model, name_in):
+    for name, param in model.named_parameters():
+        # print("name_in: " + str(name_in) + " name: " + str(name))
+        if name == name_in:
+            return param
+
+def checkGradients(model, arg):
+    weight_to_hook = {}
+    all_convs = [n.replace(".wrapped_module", "") + '.weight' for n, m in model.named_modules() if isinstance(m, nn.Conv2d) or isinstance(m,nn.Linear)]
+    weight_name = all_convs[1:]
+    for name in weight_name:
+        curr_param = find_tensor_by_name(model, name)
+        weight_to_hook[name] = curr_param.grad
+        weight_to_hook[name].requires_grad_()
+        ##PRINT SIGNS OF GRADIENTS
+        #print(arg, " Loss Gradient for ",name," :",torch.sign(curr_param.grad))
+    return weight_to_hook
+
+def compareGradients(grad1,grad2):
+    for  g_tensor, g_tensor2 in zip(grad1.items(),grad2.items()):
+        if (g_tensor[0] == g_tensor2[0]):
+            print(g_tensor[0], " :", torch.ne(torch.sign(g_tensor[1]),torch.sign(g_tensor2[1])))
+            print("Difference: ----------------------------")
+            print(torch.abs(g_tensor[1] - g_tensor2[1]))
+
+def compareGradientsJacob(grad1,grad2):
+    signMatrix = torch.ne(torch.sign(grad1),torch.sign(grad2))
+    print("Gradient values with flipped signs (True if changed): ---------")
+    print(signMatrix)
+    print ("Number of flipped gradient value signs:", torch.numel(signMatrix[signMatrix==True]))
+    print("Gradient Value Difference: ----------------------------")
+    print(torch.abs(grad1 - grad2))
+    
