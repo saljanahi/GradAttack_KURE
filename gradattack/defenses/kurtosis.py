@@ -28,7 +28,7 @@ class KurtosisWeight:
         std_output = torch.std(self.weight_tensor)
         #print("STD output:", std_output)
         kurtosis_val = torch.mean((((self.weight_tensor - mean_output) / std_output) ** 4))
-        tempVar = torch.flatten((self.weight_tensor - mean_output)/ std_output)
+        #tempVar = torch.flatten((self.weight_tensor - mean_output)/ std_output)
         #print("Weight tensor - mean / std : ", tempVar)
         #print("max(Weight tensor - mean / std ): ", torch.max(tempVar))
         # lowerBound = int(torch.numel(tempVar)/2 - 5)
@@ -153,20 +153,25 @@ def cross_entropy_with_kurtosis(wrappedModule, input,target, kt_target, kt_ratio
 
 
 def cross_entropy_kurtosis_grads(wrappedModule, input,target, kt_target, kt_ratio):
-    model = wrappedModule._model    
+    #model = wrappedModule._model    
     #model.zero_grad()
+    input = input.requires_grad_(True)
     ClassificationLoss = cross_entropy(input,target, reduction = 'mean')
 
-    
-    ClassificationGradients = torch.autograd.grad(ClassificationLoss, input, retain_graph=True, create_graph=True)[0]
-    #ClassificationLoss.backward(retain_graph=True)
+    input_grad, = torch.autograd.grad(ClassificationLoss, input, retain_graph=True, create_graph = True)
+
+    #wrappedModule.manual_backward(ClassificationLoss, retain_graph=True)
     count = 0
     hookF_weights = {}
-    for  g_tensor in ClassificationGradients:
+    weight_to_hook = {}
+    for  g_tensor in input_grad:
         count = count + 1
-        name="wat" + str(count)
+        name=str(count)
         hookF_weights[name] = KurtosisWeight(g_tensor, name, kurtosis_target=kt_target,
                                                 k_mode='avg')
+        #print(g_tensor)
+        weight_to_hook[name] = g_tensor
+    wrappedModule.tempClassGrads = input_grad.detach().clone()
 
 
     # weight_to_hook = {}
@@ -176,11 +181,13 @@ def cross_entropy_kurtosis_grads(wrappedModule, input,target, kt_target, kt_rati
     #     curr_param = find_weight_tensor_by_name(model, name)
     #     weight_to_hook[name] = curr_param.grad
     #     weight_to_hook[name].requires_grad_()
+    #     #print(curr_param.grad)
+    #wrappedModule.tempClassGrads = weight_to_hook
 
     # hookF_weights = {}
     # for name, g_tensor in weight_to_hook.items():
     #     hookF_weights[name] = KurtosisWeight(g_tensor, name, kurtosis_target=kt_target,
-    #                                             k_mode='avg')
+    #                                              k_mode='avg')
 
     w_kurtosis_regularization = 0
     w_temp_values = []
