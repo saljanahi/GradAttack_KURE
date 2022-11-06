@@ -8,7 +8,7 @@ import pytorch_lightning as pl
 import copy
 import torch.nn.functional as F
 import torchvision.models as models
-from gradattack.utils import StandardizeLayer
+from gradattack.utils import StandardizeLayer, compareGradients, checkGradients, compareGradientsJacob
 from sklearn import metrics
 from torch.nn import init
 from torch.optim.lr_scheduler import LambdaLR, MultiStepLR, ReduceLROnPlateau, StepLR
@@ -93,6 +93,7 @@ class LightningWrapper(pl.LightningModule):
         self._kt_target = kt_target
         self._kt_ratio = kt_ratio
         self.kureStepScale = kureStepScale
+        self.tempClassGrads = {}
 
         self.apply_noise_weights = apply_noise
         self.clipping_bound = clipBound
@@ -165,9 +166,6 @@ class LightningWrapper(pl.LightningModule):
         x, y = batch
         y_hat = self(x)
 
-        #if self.apply_noise_weights:
-            #self._model = apply_noise(self._model, self.clipping_bound, self.noise_multiplier, self.deviceG)
-
         if self.multi_head:
             loss = []
             for j in range(y_hat.size(1)):
@@ -175,6 +173,10 @@ class LightningWrapper(pl.LightningModule):
             loss = sum(loss) 
         elif self.apply_kurtosis:
             loss = self._training_loss_metric(self, y_hat, y, self._kt_target, self._kt_ratio)
+            #with torch.no_grad():
+                #tempRegGrads, = torch.autograd.grad(loss, y_hat, retain_graph=True)
+                #compareGradientsJacob(self.tempClassGrads,tempRegGrads)
+
         else:
             loss = self._training_loss_metric(y_hat, y )
 
@@ -193,6 +195,12 @@ class LightningWrapper(pl.LightningModule):
 
         self.manual_backward(training_step_results["loss"])
         
+        #CHECK Gradient Signs with KURE regularization
+        #tempRegGrads = checkGradients(self._model, "Regularized")
+        #print("Changes in Sign of Gradients (True if changed): ")
+        #compareGradients(self.tempClassGrads,tempRegGrads)
+
+
         # varTotal = torch.tensor([0.0]).to(torch.device(f"cuda:{1}"))
         # for param in self._model.parameters():
         #     varTotal += torch.var(torch.flatten(param), unbiased=False, dim=0, keepdim=False)
@@ -241,6 +249,7 @@ class LightningWrapper(pl.LightningModule):
         attacker: bool = False,
         *args,
     ):
+
         batch = tuple(k.to(self.device) for k in batch)
         if eval_mode is True:
             self.eval()
@@ -270,8 +279,8 @@ class LightningWrapper(pl.LightningModule):
 
         self.zero_grad()
         training_step_results = self._compute_training_step(
-            batch, batch_idx, apply_batch_transforms=apply_transforms, *args)
-
+            batch, batch_idx, apply_batch_transforms=apply_transforms, *args)    
+        
         # Make sure to apply transformations to gradients
         if apply_transforms:
             training_step_results["loss"].backward()
