@@ -174,8 +174,8 @@ class LightningWrapper(pl.LightningModule):
         elif self.apply_kurtosis:
             loss = self._training_loss_metric(self, y_hat, y, self._kt_target, self._kt_ratio)
             #with torch.no_grad():
-                #tempRegGrads, = torch.autograd.grad(loss, y_hat, retain_graph=True)
-                #compareGradientsJacob(self.tempClassGrads,tempRegGrads)
+                #tempRegGrads = torch.autograd.grad(loss, self._model.parameters(), create_graph=False)
+                #compareGradientsJacob(self, self.tempClassGrads,tempRegGrads)
 
         else:
             loss = self._training_loss_metric(y_hat, y )
@@ -194,21 +194,6 @@ class LightningWrapper(pl.LightningModule):
         self.step_tracker.cur_loss += training_step_results["loss"].item()
 
         self.manual_backward(training_step_results["loss"])
-        
-        #CHECK Gradient Signs with KURE regularization
-        #tempRegGrads = checkGradients(self._model, "Regularized")
-        #print("Changes in Sign of Gradients (True if changed): ")
-        #compareGradients(self.tempClassGrads,tempRegGrads)
-
-
-        # varTotal = torch.tensor([0.0]).to(torch.device(f"cuda:{1}"))
-        # for param in self._model.parameters():
-        #     varTotal += torch.var(torch.flatten(param), unbiased=False, dim=0, keepdim=False)
-        # print("Variance total for gradients: ", varTotal)
-
-        #for name, param in self._model.named_parameters():
-            #print("Layer ", name, " has norm: ", torch.norm(param) )
-
 
         if self.should_accumulate():
             # Special case opacus optimizers to reduce memory footprint
