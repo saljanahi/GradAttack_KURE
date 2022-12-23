@@ -153,12 +153,15 @@ def cross_entropy_with_kurtosis(wrappedModule, input,target, kt_target, kt_ratio
 
 
 def cross_entropy_kurtosis_grads(wrappedModule, input,target, kt_target, kt_ratio):
-    #model = wrappedModule._model    
+    model = wrappedModule._model    
     #model.zero_grad()
-    input = input.requires_grad_(True)
+    #input = input.requires_grad_(True)
     ClassificationLoss = cross_entropy(input,target, reduction = 'mean')
 
-    input_grad, = torch.autograd.grad(ClassificationLoss, input, retain_graph=True, create_graph = True)
+    input_grad = torch.autograd.grad(ClassificationLoss, model.parameters(), create_graph = True, retain_graph = True)
+    #print(input_grad)
+    #print(len(input_grad))
+    #print(torch.flatten(input_grad[0]))
 
     #wrappedModule.manual_backward(ClassificationLoss, retain_graph=True)
     count = 0
@@ -167,11 +170,9 @@ def cross_entropy_kurtosis_grads(wrappedModule, input,target, kt_target, kt_rati
     for  g_tensor in input_grad:
         count = count + 1
         name=str(count)
-        hookF_weights[name] = KurtosisWeight(g_tensor, name, kurtosis_target=kt_target,
-                                                k_mode='avg')
-        #print(g_tensor)
+        hookF_weights[name] = KurtosisWeight(g_tensor, name, kurtosis_target=kt_target, k_mode='avg')
         weight_to_hook[name] = g_tensor
-    wrappedModule.tempClassGrads = input_grad.detach().clone()
+    #wrappedModule.tempClassGrads = input_grad
 
 
     # weight_to_hook = {}
