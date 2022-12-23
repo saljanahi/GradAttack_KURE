@@ -651,11 +651,33 @@ def compareGradients(grad1,grad2):
             print("Difference: ----------------------------")
             print(torch.abs(g_tensor[1] - g_tensor2[1]))
 
-def compareGradientsJacob(grad1,grad2):
-    signMatrix = torch.ne(torch.sign(grad1),torch.sign(grad2))
-    print("Gradient values with flipped signs (True if changed): ---------")
-    print(signMatrix)
-    print ("Number of flipped gradient value signs:", torch.numel(signMatrix[signMatrix==True]))
-    print("Gradient Value Difference: ----------------------------")
-    print(torch.abs(grad1 - grad2))
+def compareGradientsJacob(wrappedModule, grad1,grad2):
+    grad1x = torch.cat([torch.flatten(g_tensor) for g_tensor in grad1])
+    grad2x = torch.cat([torch.flatten(g_tensor) for g_tensor in grad2])
+    signMatrix = torch.ne(torch.sign(grad1x),torch.sign(grad2x))
+    #print("Gradient values with flipped signs (True if changed): ---------")
+    #print(signMatrix)
+    #print ("Number of flipped gradient value signs:", torch.numel(signMatrix[signMatrix==True]))
+    #print("Percentage of flipped gradient signs:", (torch.numel(signMatrix[signMatrix==True]) / torch.numel(signMatrix)) * 100, "%" )
+    #print("Gradient Value Difference: ----------------------------")
+    #print(torch.abs(grad1 - grad2))
+
+    wrappedModule.log(
+        "step/numFlippedSigns",
+        torch.numel(signMatrix[signMatrix==True]),
+        on_step=True,
+        on_epoch=False,
+        prog_bar=True,
+        logger=True,
+    )
+    
+    wrappedModule.log(
+       "step/PercentageFlippedSigns",
+        (torch.numel(signMatrix[signMatrix==True]) / torch.numel(signMatrix)) * 100,
+        on_step=True,
+        on_epoch=False,
+        prog_bar=True,
+        logger=True,
+    )
+
     
